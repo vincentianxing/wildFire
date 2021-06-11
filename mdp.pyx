@@ -1,28 +1,18 @@
 # Vincent Zhu
 import csv
-import random
 
 cdef class MDP:
     cdef public int gamma, epsilon
     cdef public list states, V, Q
     cdef public dict fire_location
 
-    # gamma, epsilon = 0, 0
-    # states, V, Q = [], [], []
-    # fire_location = {}
-
     def __cinit__(self, gamma, epsilon):
         self.gamma = gamma
         self.epsilon = epsilon
         self.states = []
         self.fire_location = {'f0': (0, 0), 'f1': (1, 1), 'f2': (2, 0), 'f3': (2, 2)}
-        self.Q = []
-        self.V = []
-
-        # initialize V
-        # for i in range(0, 2304):
-        #     self.V[i] = 0
-        #     self.Q[i] = 0
+        self.Q = [0] * 2304
+        self.V = [0] * 2304
 
     def import_csv(self, filename):
         # input csv
@@ -51,25 +41,23 @@ cdef class MDP:
         p = 0.0  # probability returned
 
         # movement changes; edge case stays the same
-        if (a == 1) and (s_curr['y'] - s_next['y'] == 1):  # up
+        if (a == 1) and (s_curr['y'] - s_next['y'] == 1) and (s_curr['x'] == s_next['x']):  # up
             p = 1.0
-        elif (a == 1) and (s_curr['y'] == 0) and (s_curr['y'] - s_next['y'] == 0):  # up edge
+        elif (a == 1) and (s_curr['y'] == 0) and (s_curr['y'] - s_next['y'] == 0) and (
+                s_curr['x'] == s_next['x']):  # up edge
             p = 1
-        if (a == 2) and (s_curr['y'] - s_next['y'] == -1):  # down
+        if (a == 2) and (s_curr['y'] - s_next['y'] == -1) and (s_curr['x'] == s_next['x']):  # down
             p = 1.0
-        elif (a == 2) and (s_curr['y'] == 2) and (s_curr['y'] - s_next['y'] == 0):  # down edge
+        elif (a == 2) and (s_curr['y'] == 2) and (s_curr['y'] - s_next['y'] == 0) and (s_curr['x'] == s_next['x']):  # down edge
             p = 1.0
-        if (a == 3) and (s_curr['x'] - s_next['x'] == 1):  # left
+        if (a == 3) and (s_curr['x'] - s_next['x'] == 1) and (s_curr['y'] == s_next['y']):  # left
             p = 1.0
-        elif (a == 3) and (s_curr['x'] == 0) and (s_curr['x'] - s_next['x'] == 0):  # left edge
+        elif (a == 3) and (s_curr['x'] == 0) and (s_curr['x'] - s_next['x'] == 0) and (s_curr['y'] == s_next['y']):  # left edge
             p = 1.0
-        if (a == 4) and (s_curr['x'] - s_next['x'] == -1):  # right
+        if (a == 4) and (s_curr['x'] - s_next['x'] == -1) and (s_curr['y'] == s_next['y']):  # right
             p = 1.0
-        elif (a == 4) and (s_curr['x'] == 0) and (s_curr['x'] - s_next['x'] == 0):  # right edge
+        elif (a == 4) and (s_curr['x'] == 2) and (s_curr['x'] - s_next['x'] == 0) and (s_curr['y'] == s_next['y']):  # right edge
             p = 1.0
-
-        if (abs(s_curr['x'] - s_next['x']) > 1) or (abs(s_curr['y'] - s_next['y']) > 1):
-            p = 0.0
 
         # fire intensity changes, extinguish action (0)
         curr_location = (s_curr['x'], s_curr['y'])
@@ -108,9 +96,6 @@ cdef class MDP:
                 else:
                     p += 0.0
 
-            if p == 0.0:
-                p = 1.0
-
         # other fire intensity changes
         for f in ['f0', 'f1', 'f2', 'f3']:
             if f != fire:
@@ -143,23 +128,6 @@ cdef class MDP:
                         p = 0.0
 
         return p
-
-    # def fire_change(self, s, f):  # only fire that are not engaged
-    #     # non-active fire (0)
-    #     if s[f] == 0:
-    #         p = random.random()
-    #         if 0 <= p < 0.05:  # increase 5%
-    #             s[f] += 1
-    #     # burned out fire (3)
-    #     if s[f] == 3:
-    #         s[f] = 3
-    #     # active fire (1 or 2)
-    #     if s[f] == 1 or s[f] == 2:
-    #         p = random.random()
-    #         if 0 <= p < 0.1:  # increase 10%
-    #             s[f] += 1
-    #
-    #     return s
 
     def get_reward(self, s, a):
         cdef int r, e, noFire, burnedOut
@@ -198,28 +166,65 @@ cdef class MDP:
         r = 10 * noFire - 10 * burnedOut + e
         return r
 
-    # def value_iteration(self):
-    #     # Initialize a table V of value zeroes
-    #
-    #     # !!! check valid move, invalid get -100 reward
-    #
-    #     # Loop over every possible state s
-    #     for s in self.states:
-    #         #  Loop over every possible action a
-    #         for a in [0, 1, 2, 3, 4]:
-    #     # Get a list of all the transition from s
-    #     # expected_reward = sum of all possible r * probability
-    #     # expected_value = lookup V[s'] for each possible s', multiplied by probability, sum
-    #     # action_value = expected_reward + gamma * expected_value
-    #
-    #     # Set V[s] to the best action_value
-    #     # Repeat until largest change in V[s] is below threshold
+    def get_possible_states(self, s, a):
+        possible_states = []
+        for i in self.states:
+            if a == 0: # extinguish action
+                if (i['x'] == s['x']) and (i['y'] == s['y']):
+                    possible_states.append(i)
+            elif a == 1: # up
+                if (i['x'] == s['x']) and (i['y'] == s['y'] - 1):
+                    possible_states.append(i)
+            elif a == 2: # down
+                if (i['x'] == s['x']) and (i['y'] == s['y'] + 1):
+                    possible_states.append(i)
+            elif a == 3: # left
+                if (i['x'] == s['x'] - 1) and (i['y'] == s['y']):
+                    possible_states.append(i)
+            elif a == 4: # right
+                if (i['x'] == s['x'] + 1) and (i['y'] == s['y']):
+                    possible_states.append(i)
+        return possible_states
+
+    def construct_Q(self, s_curr,a, v, possible_states):
+        # uncertain future utility
+        u = 0
+        for s_next in possible_states:
+            t = self.transition(s_curr, a, s_next)
+            v = self.V[s_next['state']]
+            u = u + (t * v)
+        r = self.get_reward(s_curr, a)
+        q = r + (self.gamma * u)
+        self.Q[s_curr['state']] = q
+
+    def value_iteration(self):
+        # ??? check valid move, invalid get -100 reward
+        # Loop over every possible state s
+        for s_curr in self.states:
+            #  Loop over every possible action a
+            for a in range(0, 5):
+                # Get a list of possible states from current state
+                possible_states = self.get_possible_states(s_curr, a)
+                for s_next in possible_states:
+                    # transition
+                    t = self.transition(s_curr, a, s_next)
+                # immediate reward
+                r = self.get_reward(s_curr, a)
+                # Q
+                # q = r + self.gamma * total((t * max Q(s_next,a)))
+
+
+                # expected_value = lookup V[s'] for each possible s', multiplied by probability, sum
+                # action_value = expected_reward + gamma * expected_value
+
+        # Set V[s] to the best action_value
+        # Repeat until largest change in V[s] is below threshold
 
 # main
-
 wild_fire = MDP(0, 0)
 wild_fire.import_csv('states.csv')
-s_curr = {'x': 0, 'y': 0, 'f0': 0, 'f1': 0, 'f2': 0, 'f3': 0}
+
+s_curr = {'x': 0, 'y': 0, 'f0': 1, 'f1': 0, 'f2': 0, 'f3': 0}
 for a in range(0, 5):
     t = 0
     for s in wild_fire.states:
@@ -230,6 +235,6 @@ for a in range(0, 5):
     print(t)
     t = 0
 
-s_next = {'state': 1877, 'x': 1, 'y': 2, 'f0': 1, 'f1': 1, 'f2': 1, 'f3': 1}
-pp = wild_fire.transition(s_curr, 4, s_next)
-print (4, s_next, pp)
+s_next = {'state': 64, 'x': 0, 'y': 0, 'f0': 1, 'f1': 0, 'f2': 0, 'f3': 0}
+pp = wild_fire.transition(s_curr, 0, s_next)
+print (0, s_next, pp)
