@@ -48,15 +48,18 @@ cdef class MDP:
             p = 1
         if (a == 2) and (s_curr['y'] - s_next['y'] == -1) and (s_curr['x'] == s_next['x']):  # down
             p = 1.0
-        elif (a == 2) and (s_curr['y'] == 2) and (s_curr['y'] - s_next['y'] == 0) and (s_curr['x'] == s_next['x']):  # down edge
+        elif (a == 2) and (s_curr['y'] == 2) and (s_curr['y'] - s_next['y'] == 0) and (
+                s_curr['x'] == s_next['x']):  # down edge
             p = 1.0
         if (a == 3) and (s_curr['x'] - s_next['x'] == 1) and (s_curr['y'] == s_next['y']):  # left
             p = 1.0
-        elif (a == 3) and (s_curr['x'] == 0) and (s_curr['x'] - s_next['x'] == 0) and (s_curr['y'] == s_next['y']):  # left edge
+        elif (a == 3) and (s_curr['x'] == 0) and (s_curr['x'] - s_next['x'] == 0) and (
+                s_curr['y'] == s_next['y']):  # left edge
             p = 1.0
         if (a == 4) and (s_curr['x'] - s_next['x'] == -1) and (s_curr['y'] == s_next['y']):  # right
             p = 1.0
-        elif (a == 4) and (s_curr['x'] == 2) and (s_curr['x'] - s_next['x'] == 0) and (s_curr['y'] == s_next['y']):  # right edge
+        elif (a == 4) and (s_curr['x'] == 2) and (s_curr['x'] - s_next['x'] == 0) and (
+                s_curr['y'] == s_next['y']):  # right edge
             p = 1.0
 
         # fire intensity changes, extinguish action (0)
@@ -169,26 +172,25 @@ cdef class MDP:
     def get_possible_states(self, s, a):
         possible_states = []
         for i in self.states:
-            if a == 0: # extinguish action
+            if a == 0:  # extinguish action
                 if (i['x'] == s['x']) and (i['y'] == s['y']):
                     possible_states.append(i)
-            elif a == 1: # up
+            elif a == 1:  # up
                 if (i['x'] == s['x']) and (i['y'] == s['y'] - 1):
                     possible_states.append(i)
-            elif a == 2: # down
+            elif a == 2:  # down
                 if (i['x'] == s['x']) and (i['y'] == s['y'] + 1):
                     possible_states.append(i)
-            elif a == 3: # left
+            elif a == 3:  # left
                 if (i['x'] == s['x'] - 1) and (i['y'] == s['y']):
                     possible_states.append(i)
-            elif a == 4: # right
+            elif a == 4:  # right
                 if (i['x'] == s['x'] + 1) and (i['y'] == s['y']):
                     possible_states.append(i)
         return possible_states
 
-    def construct_Q(self, s_curr,a, v, possible_states):
-        # uncertain future utility
-        u = 0
+    def construct_V(self, s_curr, a, v, possible_states):
+        u = 0  # uncertain future utility
         for s_next in possible_states:
             t = self.transition(s_curr, a, s_next)
             v = self.V[s_next['state']]
@@ -196,6 +198,7 @@ cdef class MDP:
         r = self.get_reward(s_curr, a)
         q = r + (self.gamma * u)
         self.Q[s_curr['state']] = q
+        return q
 
     def value_iteration(self):
         # ??? check valid move, invalid get -100 reward
@@ -205,17 +208,17 @@ cdef class MDP:
             for a in range(0, 5):
                 # Get a list of possible states from current state
                 possible_states = self.get_possible_states(s_curr, a)
-                for s_next in possible_states:
-                    # transition
-                    t = self.transition(s_curr, a, s_next)
-                # immediate reward
-                r = self.get_reward(s_curr, a)
-                # Q
-                # q = r + self.gamma * total((t * max Q(s_next,a)))
+                for s in possible_states:
+                    pre_v = self.V[s]
+                    new_v = self.construct_V(s_curr, possible_states)
+                    self.V[s] = new_v
+                    max_change = max(max_change, abs(pre_v - new_v))
+                if max_change < self.epsilon:
+                    break
+        return self.V
 
-
-                # expected_value = lookup V[s'] for each possible s', multiplied by probability, sum
-                # action_value = expected_reward + gamma * expected_value
+            # expected_value = lookup V[s'] for each possible s', multiplied by probability, sum
+            # action_value = expected_reward + gamma * expected_value
 
         # Set V[s] to the best action_value
         # Repeat until largest change in V[s] is below threshold
