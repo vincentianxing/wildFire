@@ -2,7 +2,7 @@
 import csv
 
 cdef class MDP:
-    cdef public int gamma, epsilon
+    cdef public float gamma, epsilon
     cdef public list states, V, Q, actions
     cdef public dict fire_location
 
@@ -134,7 +134,7 @@ cdef class MDP:
         return p
 
     def get_reward(self, s, a):
-        cdef int r, e, no_fire, burned_out = 0
+        cdef int r, e, no_fire, burned_out
         curr_location = (s['x'], s['y'])
 
         # E
@@ -168,13 +168,14 @@ cdef class MDP:
 
         # reward
         r = (10 * no_fire) - (10 * burned_out) + e
+        # print(r)
         return r
 
     def get_possible_states(self, s, a):
         possible_states = []
         for i in self.states:
-            if a == 0:  # extinguish action
-                if (i['x'] == s['x']) and (i['y'] == s['y']):
+            # if a == 0:  # extinguish action
+            if (i['x'] == s['x']) and (i['y'] == s['y']):
                     possible_states.append(i)
             elif a == 1:  # up
                 if (i['x'] == s['x']) and (i['y'] == s['y'] - 1):
@@ -203,13 +204,13 @@ cdef class MDP:
 
     def value_iteration(self):  # ??? check valid move, invalid get -100 reward
         converge = float('inf')
-        # Loop over every possible state s
         while converge > self.epsilon:
             converge = 0
+            # Loop over every possible state s
             for s_curr in self.states:
                 #  Loop over every possible action a
                 for a in range(0, 5):
-                    max_q = 0
+                    max_q = float('-inf')
                     # Get a list of possible states from current state
                     possible_states = self.get_possible_states(s_curr, a)
                     # update Q(s_curr,a) = r(s_curr,a) + gamma * sum{t(s_curr, a, s_next) * v(s_next)}
@@ -218,20 +219,26 @@ cdef class MDP:
                     if q > max_q:
                         max_q = q
                         self.actions[s_curr['state']] = a
-                    v_new = self.V[s_curr['state']]
-                    converge = max(converge, abs(v_pre - v_new))
                 # update V = max{Q(s_curr, a)}
                 self.V[s_curr['state']] = max_q
-            print("converge", converge)
+                # calculate max change of V
+                v_new = self.V[s_curr['state']]
+                # print(v_pre, v_new)
+                # print(converge)
+                converge = max(converge, abs(v_pre - v_new))
+            print("converge", converge, self.epsilon)
         return self.V, self.actions
 
 # main
 gamma = 0.9
 epsilon = 0.1
-wild_fire = MDP(gamma, epsilon)
+wild_fire = MDP(0.9, 0.1)
 wild_fire.import_csv('states.csv')
 
 # s_curr = {'x': 0, 'y': 0, 'f0': 1, 'f1': 0, 'f2': 0, 'f3': 0}
+# p = wild_fire.get_possible_states(s_curr, 1)
+# for pp in p:
+#     print(pp)
 # for a in range(0, 5):
 #     t = 0
 #     for s in wild_fire.states:
@@ -247,6 +254,6 @@ wild_fire.import_csv('states.csv')
 # print (0, s_next, pp)
 
 v, a= wild_fire.value_iteration()
-for i in range(10):
+for i in range(len(a)):
     print(a[i])
-# print(v)
+print(v)
