@@ -134,7 +134,11 @@ cdef class MDP:
         return p
 
     def get_reward(self, s, a):
-        cdef int r, e, no_fire, burned_out
+        #cdef int r, e, nofire, burnedout
+        r = 0
+        e = 0
+        nofire = 0
+        burnedout = 0
         curr_location = (s['x'], s['y'])
 
         # E
@@ -162,13 +166,12 @@ cdef class MDP:
         # get fire status
         for f in ['f0', 'f1', 'f2', 'f3']:
             if s[f] == 0:
-                no_fire += 1
+                nofire += 1
             if s[f] == 3:
-                burned_out += 1
+                burnedout += 1
 
         # reward
-        r = (10 * no_fire) - (10 * burned_out) + e
-        # print(r)
+        r = (10 * nofire) - (10 * burnedout) + e
         return r
 
     def get_possible_states(self, s, a):
@@ -208,25 +211,24 @@ cdef class MDP:
             converge = 0
             # Loop over every possible state s
             for s_curr in self.states:
+                max_q = float('-inf')
+                # Get a list of possible states from current state
+                possible_states = self.get_possible_states(s_curr, a)
                 #  Loop over every possible action a
                 for a in range(0, 5):
-                    max_q = float('-inf')
-                    # Get a list of possible states from current state
-                    possible_states = self.get_possible_states(s_curr, a)
                     # update Q(s_curr,a) = r(s_curr,a) + gamma * sum{t(s_curr, a, s_next) * v(s_next)}
                     v_pre = self.V[s_curr['state']]
                     q = self.construct_q(s_curr, a, possible_states)
                     if q > max_q:
+                        #print('true', q, max_q)
                         max_q = q
                         self.actions[s_curr['state']] = a
                 # update V = max{Q(s_curr, a)}
                 self.V[s_curr['state']] = max_q
                 # calculate max change of V
                 v_new = self.V[s_curr['state']]
-                # print(v_pre, v_new)
-                # print(converge)
                 converge = max(converge, abs(v_pre - v_new))
-            print("converge", converge, self.epsilon)
+            print("converge", converge)
         return self.V, self.actions
 
 # main
@@ -254,6 +256,6 @@ wild_fire.import_csv('states.csv')
 # print (0, s_next, pp)
 
 v, a= wild_fire.value_iteration()
-for i in range(len(a)):
+for i in range(100):
     print(a[i])
-print(v)
+#print(v)
