@@ -2,91 +2,85 @@
 import csv
 import sys
 import time
+import numpy as np
+from cpython cimport array
+import array
 
 cdef class MDP:
     cdef public float gamma, epsilon
-    cdef public list states, p_states, V, Q, actions
-    cdef public dict fire_location
+    cdef public list states, V, Q, actions
+    cdef public list fire_location
 
     def __cinit__(self, gamma, epsilon):
         self.gamma = gamma
         self.epsilon = epsilon
         self.states = []
-        self.p_states = []
-        self.fire_location = {'f0': (0, 0), 'f1': (1, 1), 'f2': (2, 0), 'f3': (2, 2)}
+        self.fire_location = [(0, 0), (1, 1), (2, 0), (2, 2)]
         self.Q = [0] * 2304
         self.V = [0] * 2304
         self.actions = [-1] * 2304
 
-    def import_csv(self, filename):
+    cpdef import_csv(self, filename):
         # input csv
         with open(filename, newline='') as csvfile:
             reader = csv.DictReader(csvfile)
             for row in reader:
-                next_input_state = {'state': int(row['State']),
-                                    'x': int(row['X']),
-                                    'y': int(row['Y']),
-                                    'f0': int(row['F0']),
-                                    'f1': int(row['F1']),
-                                    'f2': int(row['F2']),
-                                    'f3': int(row['F3'])}
+                next_input_state = [int(row['State']),
+                                    int(row['X']),
+                                    int(row['Y']),
+                                    int(row['F0']),
+                                    int(row['F1']),
+                                    int(row['F2']),
+                                    int(row['F3'])]
                 self.states.append(next_input_state)
-                # for get_possible_states
-                next_input_p_state = {'x': int(row['X']),
-                                    'y': int(row['Y']),
-                                    'f0': int(row['F0']),
-                                    'f1': int(row['F1']),
-                                    'f2': int(row['F2']),
-                                    'f3': int(row['F3'])}
-                self.p_states.append(next_input_p_state)
 
-    def transition(self, s_curr, a, s_next):
+    cdef float transition(self, list s_curr, int a, list s_next) except *:
         # T(s_curr, a, s_next) = P(s_next | s_curr, a)
 
         # s_curr and s_next are states {x, y, f0, f1, f2, f3}
         # a is action to take
 
-        p = 0.0  # probability returned
+        cdef float p = 0.0  # probability returned
 
         # movement changes; edge case stays the same
-        if (a == 1) and (s_curr['y'] - s_next['y'] == 1) and (s_curr['x'] == s_next['x']):  # up
+        if (a == 1) and (s_curr[2] - s_next[2] == 1) and (s_curr[1] == s_next[1]):  # up
             p = 1.0
-        elif (a == 1) and (s_curr['y'] == 0) and (s_curr['y'] - s_next['y'] == 0) and (
-                s_curr['x'] == s_next['x']):  # up edge
+        elif (a == 1) and (s_curr[2] == 0) and (s_curr[2] - s_next[2] == 0) and (
+                s_curr[1] == s_next[1]):  # up edge
             p = 1.0
-        if (a == 2) and (s_curr['y'] - s_next['y'] == -1) and (s_curr['x'] == s_next['x']):  # down
+        if (a == 2) and (s_curr[2] - s_next[2] == -1) and (s_curr[1] == s_next[1]):  # down
             p = 1.0
-        elif (a == 2) and (s_curr['y'] == 2) and (s_curr['y'] - s_next['y'] == 0) and (
-                s_curr['x'] == s_next['x']):  # down edge
+        elif (a == 2) and (s_curr[2] == 2) and (s_curr[2] - s_next[2] == 0) and (
+                s_curr[1] == s_next[1]):  # down edge
             p = 1.0
-        if (a == 3) and (s_curr['x'] - s_next['x'] == 1) and (s_curr['y'] == s_next['y']):  # left
+        if (a == 3) and (s_curr[1] - s_next[1] == 1) and (s_curr[2] == s_next[2]):  # left
             p = 1.0
-        elif (a == 3) and (s_curr['x'] == 0) and (s_curr['x'] - s_next['x'] == 0) and (
-                s_curr['y'] == s_next['y']):  # left edge
+        elif (a == 3) and (s_curr[1] == 0) and (s_curr[1] - s_next[1] == 0) and (
+                s_curr[2] == s_next[2]):  # left edge
             p = 1.0
-        if (a == 4) and (s_curr['x'] - s_next['x'] == -1) and (s_curr['y'] == s_next['y']):  # right
+        if (a == 4) and (s_curr[1] - s_next[1] == -1) and (s_curr[2] == s_next[2]):  # right
             p = 1.0
-        elif (a == 4) and (s_curr['x'] == 2) and (s_curr['x'] - s_next['x'] == 0) and (
-                s_curr['y'] == s_next['y']):  # right edge
+        elif (a == 4) and (s_curr[1] == 2) and (s_curr[1] - s_next[1] == 0) and (
+                s_curr[2] == s_next[2]):  # right edge
             p = 1.0
 
         # fire intensity changes, extinguish action (0)
-        curr_location = (s_curr['x'], s_curr['y'])
-        fire = ''
+        cdef tuple curr_location = (s_curr[1], s_curr[2])
+        cdef int fire = 7
 
-        if (a == 0) and (s_curr['x'] != s_next['x']):
+        if (a == 0) and (s_curr[1] != s_next[1]):
             p = 0.0
-        elif (a == 0) and (s_curr['y'] != s_next['y']):
+        elif (a == 0) and (s_curr[2] != s_next[2]):
             p = 0.0
-        elif (a == 0) and (curr_location in self.fire_location.values()):  # extinguish
-            if curr_location == self.fire_location['f0']:
-                fire = 'f0'
-            elif curr_location == self.fire_location['f1']:
-                fire = 'f1'
-            elif curr_location == self.fire_location['f2']:
-                fire = 'f2'
-            elif curr_location == self.fire_location['f3']:
-                fire = 'f3'
+        elif (a == 0) and (curr_location in self.fire_location):  # extinguish
+            if curr_location == self.fire_location[0]:
+                fire = 3
+            elif curr_location == self.fire_location[1]:
+                fire = 4
+            elif curr_location == self.fire_location[2]:
+                fire = 5
+            elif curr_location == self.fire_location[3]:
+                fire = 6
 
             # extinguish on active fire (1 or 2)
             if (s_curr[fire] == 1) or (s_curr[fire] == 2):
@@ -106,11 +100,11 @@ cdef class MDP:
                     p = 1.0
                 else:
                     p = 0.0
-        elif (a == 0) and (curr_location not in self.fire_location.values()):
+        elif (a == 0) and (curr_location not in self.fire_location):
             p = 1.0
 
         # other fire intensity changes
-        for f in ['f0', 'f1', 'f2', 'f3']:
+        for f in range(3, 7):
             if f != fire:
                 # non-active fire (0)
                 if s_curr[f] == 0:
@@ -142,27 +136,27 @@ cdef class MDP:
 
         return p
 
-    def get_reward(self, s, a):
-        # cdef int r, e, nofire, burnedout
-        r = 0
-        e = 0
-        nofire = 0
-        burnedout = 0
-        curr_location = (s['x'], s['y'])
+    cdef int get_reward(self, list s, int a):
+        cdef int r = 0
+        cdef int e = 0
+        cdef int nofire = 0
+        cdef int burnedout = 0
+        cdef tuple curr_location = (s[1], s[2])
+        cdef int fire = 7
 
         # E
         if a == 1 or a == 2 or a == 3 or a == 4:
             e = 0
-        elif (a == 0) and (curr_location in self.fire_location.values()):
+        elif (a == 0) and (curr_location in self.fire_location):
             # which fire
-            if curr_location == self.fire_location['f0']:
-                fire = 'f0'
-            elif curr_location == self.fire_location['f1']:
-                fire = 'f1'
-            elif curr_location == self.fire_location['f2']:
-                fire = 'f2'
-            elif curr_location == self.fire_location['f3']:
-                fire = 'f3'
+            if curr_location == self.fire_location[0]:
+                fire = 3
+            elif curr_location == self.fire_location[1]:
+                fire = 4
+            elif curr_location == self.fire_location[2]:
+                fire = 5
+            elif curr_location == self.fire_location[3]:
+                fire = 6
             # check if fire with intensity 1 or 2
             if s[fire] == 1 or s[fire] == 2:
                 e = 5
@@ -173,7 +167,7 @@ cdef class MDP:
             e = -10
 
         # get fire status
-        for f in ['f0', 'f1', 'f2', 'f3']:
+        for f in range(3, 7):
             if s[f] == 0:
                 nofire += 1
             if s[f] == 3:
@@ -183,86 +177,68 @@ cdef class MDP:
         r = (10 * nofire) - (10 * burnedout) + e
         return r
 
-    def get_possible_statess(self, s, a):
-        possible_states = []
+    cdef list get_possible_states(self, list s, int a):
+        cdef list possible_states = []
         for i in self.states:
-            if (i['x'] == s['x']) and (i['y'] == s['y']):
+            if (i[1] == s[1]) and (i[2] == s[2]):
                 possible_states.append(i)
             if a == 1:  # up
-                if (i['x'] == s['x']) and (i['y'] == s['y'] - 1):
+                if (i[1] == s[1]) and (i[2] == s[2] - 1):
                     possible_states.append(i)
             elif a == 2:  # down
-                if (i['x'] == s['x']) and (i['y'] == s['y'] + 1):
+                if (i[1] == s[1]) and (i[2] == s[2] + 1):
                     possible_states.append(i)
             elif a == 3:  # left
-                if (i['x'] == s['x'] - 1) and (i['y'] == s['y']):
+                if (i[1] == s[1] - 1) and (i[2] == s[2]):
                     possible_states.append(i)
             elif a == 4:  # right
-                if (i['x'] == s['x'] + 1) and (i['y'] == s['y']):
+                if (i[1] == s[1] + 1) and (i[2] == s[2]):
                     possible_states.append(i)
         return possible_states
 
-    def get_possible_states(self, s, a):
-        possible_states = []
-        if a == 0:
-            x = s['x']
-            y = s['y']
-        elif a == 1 and s['y'] != 0: # up
-            x = s['x']
-            y = s['y'] - 1
-        elif a == 2 and s['y'] != 2: # down
-            x = s['x']
-            y = s['y'] + 1
-        elif a == 3 and s['x'] != 0: # left
-            x = s['x'] - 1
-            y = s['y']
-        elif a == 4 and s['x'] != 2: # right
-            x = s['x'] + 1
-            y = s['y']
-        else:
-            x = s['x']
-            y = s['y']
-
-        for f0 in range(2):
-            for f1 in range(2):
-                for f2 in range(2):
-                    for f3 in range(2):
-                        id = self.p_states.index({'x': x, 'y': y, 'f0': f0, 'f1': f1, 'f2': f2, 'f3': f3})
-                        possible_states.append({'state': id, 'x': x, 'y': y, 'f0': f0, 'f1': f1, 'f2': f2, 'f3': f3})
-        return possible_states
-
-    def construct_t(self):
-        curr = {}
+    cdef list construct_t(self):
+        cdef list curr = [0] * 2304
+        cdef list action = [0] * 5
+        cdef list next = [0] * 2304
         for s_curr in self.states:
-            action = {}
+            action = [0] * 5
             for a in range(5):
-                curr[s_curr['state']] = action
-                next = {}
+                curr[s_curr[0]] = action
+                next = [0] * 2304
                 for s_next in self.get_possible_states(s_curr, a):
                     action[a] = next
                     t = self.transition(s_curr, a, s_next)
-                    next[s_next['state']] = t
+                    next[s_next[0]] = t
         return curr
 
-    def construct_q(self, s_curr, a, possible_states, vv, t_table):
-        u = 0  # uncertain future utility
+    cdef float construct_q(self, list s_curr, int a, list possible_states, list vv, list t_table):
+        cdef float u = 0.0  # uncertain future utility
+        cdef float t = 0.0
+        cdef float v_next = 0.0
+        cdef int r = 0
+        cdef float q = 0.0
         for s_next in possible_states:
-            t = t_table[s_curr['state']][a][s_next['state']]
-            v_next = vv[s_next['state']]
+            t = t_table[s_curr[0]][a][s_next[0]]
+            v_next = vv[s_next[0]]
             u += t * v_next
         r = self.get_reward(s_curr, a)
         q = r + (self.gamma * u)
-        self.Q[s_curr['state']] = q
+        self.Q[s_curr[0]] = q
         return q
 
-    def value_iteration(self):
-        start = time.time()
+    cpdef tuple value_iteration(self):
+        cdef double start = time.time()
+        cdef double end
+        cdef float converge = float('inf')
+        cdef list t_table = self.construct_t()
+        cdef list vv
+        cdef float max_q
+        cdef list possible_states
+        cdef float q
 
-        converge = float('inf')
         # check if converge
-        t_table = self.construct_t()
         while converge > self.epsilon:
-            converge = 0
+            converge = 0.0
             vv = self.V.copy()
             # Loop over every possible state s
             for s_curr in self.states:
@@ -275,13 +251,14 @@ cdef class MDP:
                     q = self.construct_q(s_curr, a, possible_states, vv, t_table)
                     if q > max_q:
                         max_q = q
-                        self.actions[s_curr['state']] = a
+                        self.actions[s_curr[0]] = a
                 # update V = max{Q(s_curr, a)}
-                self.V[s_curr['state']] = max_q
+                self.V[s_curr[0]] = max_q
                 # calculate max change of V
-                converge = max(converge, abs(vv[s_curr['state']] - self.V[s_curr['state']]))
+                converge = max(converge, abs(vv[s_curr[0]] - self.V[s_curr[0]]))
 
-            print(converge, time.time() - start)
+            end = time.time()
+            print(converge, end - start)
 
         return self.V, self.actions
 
@@ -291,29 +268,8 @@ epsilon = float(sys.argv[2])
 wild_fire = MDP(gamma, epsilon)
 wild_fire.import_csv('states.csv')
 
-# s_curr = {'x': 2, 'y': 2, 'f0': 1, 'f1': 0, 'f2': 0, 'f3': 0}
-# p = wild_fire.get_possible_states(s_curr, 1)
-# for pp in p:
-#     print(pp)
-# for a in range(0, 5):
-#     t = 0
-#     for s in wild_fire.states:
-#         p = wild_fire.transition(s_curr, a, s)
-#         t += p
-#         if p != 0:
-#             print(a, s, p)
-#     print(t)
-#     t = 0
-#
-# s_curr = {'state': 320, 'x': 1, 'y': 0, 'f0': 1, 'f1': 0, 'f2': 0, 'f3': 0}
-# s_next = {'state': 325, 'x': 1, 'y': 0, 'f0': 1, 'f1': 0, 'f2': 1, 'f3': 1}
-# pp = wild_fire.transition(s_curr, 0, s_next)
-# print (0, s_next, pp)
-
 v, a = wild_fire.value_iteration()
-for i in range(100):
-    print(a[i])
-print(v)
+# print(v)
 
 with open('output.csv', 'w', newline='') as csvfile:
     fieldnames = ['index', 'action']
@@ -321,12 +277,3 @@ with open('output.csv', 'w', newline='') as csvfile:
     writer.writeheader()
     for i in range(len(a)):
         writer.writerow({'index': i, 'action': a[i]})
-
-# ps = wild_fire.get_possible_states(s_curr, 1)
-# r = wild_fire.get_reward(s_curr, 1)
-# q = wild_fire.construct_q(s_curr, 1, ps)
-# print(r)
-# print(q)
-# print(s_curr)
-# for i in ps:
-#     print(i)
