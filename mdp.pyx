@@ -8,17 +8,22 @@ import array
 
 cdef class MDP:
     cdef public float gamma, epsilon
-    cdef public list states, V, Q, actions
+    cdef public list statess, V, Q, actions
+    cdef public int[2304][7] states
     cdef public list fire_location
 
     def __cinit__(self, gamma, epsilon):
         self.gamma = gamma
         self.epsilon = epsilon
-        self.states = []
+        self.statess = []
         self.fire_location = [(0, 0), (1, 1), (2, 0), (2, 2)]
         self.Q = [0] * 2304
         self.V = [0] * 2304
         self.actions = [-1] * 2304
+
+    cdef convert(self):
+        for s in range(len(self.statess)):
+            self.states[s] = self.statess[s]
 
     cpdef import_csv(self, filename):
         # input csv
@@ -32,7 +37,9 @@ cdef class MDP:
                                     int(row['F1']),
                                     int(row['F2']),
                                     int(row['F3'])]
-                self.states.append(next_input_state)
+                self.statess.append(next_input_state)
+        self.convert()
+        print(self.states)
 
     cdef float transition(self, list s_curr, int a, list s_next) except *:
         # T(s_curr, a, s_next) = P(s_next | s_curr, a)
@@ -179,21 +186,21 @@ cdef class MDP:
 
     cdef list get_possible_states(self, list s, int a):
         cdef list possible_states = []
-        for i in self.states:
-            if (i[1] == s[1]) and (i[2] == s[2]):
-                possible_states.append(i)
+        for i in range (sizeof(self.states)):
+            if (self.states[i][1] == s[1]) and (self.states[i][2] == s[2]):
+                possible_states.append(self.states[i])
             if a == 1:  # up
-                if (i[1] == s[1]) and (i[2] == s[2] - 1):
-                    possible_states.append(i)
+                if (self.states[i][1] == s[1]) and (self.states[i][2] == s[2] - 1):
+                    possible_states.append(self.states[i])
             elif a == 2:  # down
-                if (i[1] == s[1]) and (i[2] == s[2] + 1):
-                    possible_states.append(i)
+                if (self.states[i][1] == s[1]) and (self.states[i][2] == s[2] + 1):
+                    possible_states.append(self.states[i])
             elif a == 3:  # left
-                if (i[1] == s[1] - 1) and (i[2] == s[2]):
-                    possible_states.append(i)
+                if (self.states[i][1] == s[1] - 1) and (self.states[i][2] == s[2]):
+                    possible_states.append(self.states[i])
             elif a == 4:  # right
-                if (i[1] == s[1] + 1) and (i[2] == s[2]):
-                    possible_states.append(i)
+                if (self.states[i][1] == s[1] + 1) and (self.states[i][2] == s[2]):
+                    possible_states.append(self.states[i])
         return possible_states
 
     cdef list construct_t(self):
